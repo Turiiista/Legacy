@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111112">
+  <meta name="description" content="Painel financeiro compartilhado da organização LEGACY — Cidade Brava.">
+  <title>LEGACY | Painel financeiro</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="auth-overlay" class="auth-overlay" aria-live="polite">
+    <div class="auth-card">
+      <div class="auth-emblem"><img class="auth-crown" src="assets/coroa.png" alt=""><img class="auth-logo" src="assets/legacy.png" alt="LEGACY"></div>
+      <p class="eyebrow">CIDADE BRAVA · FINANCEIRO</p>
+      <h1>Acesso à LEGACY</h1>
+      <p id="auth-message">Verificando seu acesso...</p>
+      <a id="discord-login" class="button primary hidden" href="/api/auth/login">Entrar com Discord</a>
+      <button id="retry-auth" class="button secondary hidden" type="button">Tentar novamente</button>
+      <p class="muted small">A verificação de membro depende da configuração do Discord no Cloudflare Pages.</p>
+    </div>
+  </div>
+
+  <div class="app-shell auth-pending" id="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="assets/legacy.png" alt="LEGACY">
+        <div><strong>LEGACY</strong><span>CIDADE BRAVA</span></div>
+      </div>
+      <div class="sidebar-caption">PAINEL FINANCEIRO</div>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">◈</span> Visão geral</button>
+        <button class="nav-item" data-view="wash"><span class="nav-icon">↗</span> Nova lavagem</button>
+        <button class="nav-item" data-view="sales"><span class="nav-icon">▤</span> Venda de itens</button>
+        <button class="nav-item" data-view="prices"><span class="nav-icon">▧</span> Tabela de preços</button>
+        <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Histórico</button>
+        <button class="nav-item" data-view="reports"><span class="nav-icon">▥</span> Relatórios</button>
+        <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span> Produtos e dados</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-note"><span class="status-dot"></span><div><strong>Banco compartilhado</strong><small>Cloudflare D1 · LEGACY</small></div></div>
+        <button id="logout-button" class="nav-item logout hidden" type="button"><span class="nav-icon">↪</span> Sair do Discord</button>
+        <div class="sidebar-version">LEGACY FINANCEIRO <span>v1.0</span></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="menu-toggle" class="icon-button mobile-menu" aria-label="Abrir menu">☰</button>
+        <div class="topbar-title"><span class="eyebrow">ORGANIZAÇÃO · LEGACY</span><h1 id="page-title">Visão geral</h1></div>
+        <div class="topbar-right"><span id="connection-pill" class="connection-pill"><i></i> Verificando acesso</span><span class="user-name" id="user-name"></span><span class="user-avatar">L</span></div>
+      </header>
+
+      <div id="system-notice" class="system-notice hidden" role="status"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <section class="view active" id="view-dashboard">
+        <div class="page-intro"><div><p class="eyebrow">ACOMPANHAMENTO</p><h2>Resumo financeiro</h2><p class="muted">Movimentações compartilhadas entre os membros autorizados.</p></div><label class="filter-inline">Período <select id="dashboard-period"><option value="30">Últimos 30 dias</option><option value="7">Últimos 7 dias</option><option value="today">Hoje</option><option value="all">Todo o período</option></select></label></div>
+        <div class="legacy-hero"><img class="hero-cross" src="assets/cruz.png" alt=""><img class="hero-lion" src="assets/leao.png" alt=""><div class="hero-copy"><p class="eyebrow">PODER · LEALDADE · LEGADO</p><h2>O LEGADO é construído<br>por quem deixa sua marca.</h2><p>Painel financeiro oficial · Cidade Brava</p></div><img class="hero-sigil" src="assets/lgc.png" alt=""></div>
+        <div class="stats-grid">
+          <article class="stat-card feature"><div class="stat-heading"><span>Total movimentado</span><span class="stat-icon red">↗</span></div><strong id="stat-moved">R$ 0,00</strong><small>Lavagens e vendas no período</small></article>
+          <article class="stat-card"><div class="stat-heading"><span>Máquina</span><span class="stat-icon">◉</span></div><strong id="stat-machine">R$ 0,00</strong><small>Total das taxas da máquina</small></article>
+          <article class="stat-card"><div class="stat-heading"><span>Caixa LEGACY</span><span class="stat-icon gold">◆</span></div><strong id="stat-legacy">R$ 0,00</strong><small>Lavagens e vendas</small></article>
+          <article class="stat-card"><div class="stat-heading"><span>Comissões pagas</span><span class="stat-icon">♙</span></div><strong id="stat-sellers">R$ 0,00</strong><small>Vendedores + lavadores</small></article>
+        </div>
+        <div class="stats-grid secondary-stats"><article class="mini-stat"><span>Operações no período</span><strong id="stat-count">0</strong></article><article class="mini-stat"><span>Total lavado</span><strong id="stat-washed">R$ 0,00</strong></article><article class="mini-stat"><span>Destinado a membros/clientes</span><strong id="stat-members">R$ 0,00</strong></article><article class="mini-stat"><span>Vendas registradas</span><strong id="stat-sales">R$ 0,00</strong></article></div>
+        <div class="dashboard-grid"><article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">TENDÊNCIA</p><h3>Movimentação</h3></div><span class="legend"><i></i> Valor bruto</span></div><div class="chart-wrap"><canvas id="movement-chart" aria-label="Gráfico de movimentação por dia"></canvas><div id="chart-empty" class="empty-chart hidden">Sem movimentações no período selecionado.</div></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">RECENTES</p><h3>Últimas operações</h3></div><button class="text-button" data-go="history">Ver histórico →</button></div><div id="recent-list" class="recent-list"></div></article><article class="panel"><div class="panel-heading"><div><p class="eyebrow">EQUIPE</p><h3>Lavagens por membro</h3></div></div><div id="wash-leaderboard" class="ranking-list"></div></article></div>
+      </section>
+
+      <section class="view" id="view-wash">
+        <div class="page-intro"><div><p class="eyebrow">OPERAÇÃO FINANCEIRA</p><h2>Nova lavagem</h2><p class="muted">Preencha os dados para calcular a divisão antes de registrar.</p></div></div>
+        <div class="form-layout"><form class="panel operation-form" id="wash-form" novalidate><div class="panel-heading"><div><p class="eyebrow">DADOS DA OPERAÇÃO</p><h3>Informações da lavagem</h3></div><span class="required-note">* Obrigatório</span></div>
+          <div class="field-grid"><label class="field full"><span>Nome de quem está lavando *</span><input class="large-control" id="wash-name" name="name" autocomplete="off" maxlength="80" placeholder="Ex.: Nome Sobrenome" required></label>
+          <label class="field"><span>Valor bruto *</span><div class="money-wrap large-money"><input class="money-input large-control" id="wash-gross" name="gross" type="text" inputmode="decimal" placeholder="R$ 0,00" aria-label="Valor bruto em reais" autocomplete="off" required><span class="money-hint">Digite o valor inteiro; use vírgula para centavos.</span></div></label>
+          <label class="field"><span>Categoria *</span><select class="large-control" id="wash-category" required><option value="member">Membro LEGACY</option><option value="outsider">Pessoa de fora</option></select></label>
+          <label class="field"><span>Pagou o farm? *</span><select class="large-control" id="wash-farm"><option value="yes">Sim</option><option value="no">Não</option></select></label>
+          <label class="field hidden" id="partnership-field"><span>Possui parceria? *</span><select class="large-control" id="wash-partnership"><option value="yes">Sim</option><option value="no">Não</option></select></label>
+          <label class="field full"><span>Observação</span><textarea class="large-control" id="wash-notes" rows="3" maxlength="500" placeholder="Detalhes opcionais da operação"></textarea></label></div>
+          <div class="button-row"><button type="button" id="calculate-wash" class="button secondary">Calcular divisão</button><button type="button" id="register-wash" class="button primary" disabled>Registrar operação</button></div>
+        </form>
+        <aside class="panel split-panel"><div class="panel-heading"><div><p class="eyebrow">PRÉVIA</p><h3>Divisão financeira</h3></div><span class="preview-lock" id="preview-status">Aguardando cálculo</span></div><div id="wash-preview" class="split-list"><p class="empty-state">Informe os dados e selecione <strong>Calcular divisão</strong> para visualizar os valores.</p></div><div class="rules-note"><strong>Regras aplicadas</strong><p id="wash-rule-note">A divisão seguirá exatamente as porcentagens configuradas para a categoria e o pagamento do farm.</p></div></aside></div>
+      </section>
+
+      <section class="view" id="view-sales">
+        <div class="page-intro"><div><p class="eyebrow">OPERAÇÃO COMERCIAL</p><h2>Venda de itens</h2><p class="muted">Monte um carrinho com vários produtos. O preço é definido pelo catálogo compartilhado e pelo tipo de parceria.</p></div></div>
+        <div class="form-layout"><form class="panel operation-form" id="sales-form" novalidate><div class="panel-heading"><div><p class="eyebrow">NOVA COMPRA</p><h3>Monte o pedido</h3></div></div>
+          <div class="field-grid">
+            <label class="field full"><span>Nome do vendedor *</span><input class="large-control" id="seller-name" maxlength="80" placeholder="Ex.: Nome Sobrenome" required></label>
+            <label class="field"><span>Cliente possui parceria? *</span><select class="large-control" id="sale-partnership"><option value="no">Não</option><option value="yes">Sim</option></select></label>
+            <label class="field"><span>Produto *</span><select class="large-control" id="sale-product" required></select></label>
+            <label class="field"><span>Quantidade *</span><input class="large-control" id="sale-quantity" type="number" inputmode="numeric" min="1" step="1" value="1" required></label>
+            <label class="field"><span>Valor unitário automático</span><input class="money-input large-control" id="sale-unit" type="text" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off" readonly aria-readonly="true"></label>
+            <div class="field full"><button id="add-to-cart" type="button" class="button secondary">＋ Adicionar produto ao pedido</button></div>
+            <label class="field full"><span>Observação</span><textarea class="large-control" id="sale-notes" rows="3" maxlength="500" placeholder="Detalhes opcionais da venda"></textarea></label>
+          </div>
+          <div class="cart-section"><div class="cart-title"><h4>Produtos desta compra</h4><span id="cart-count">0 itens</span></div><div class="table-scroll"><table class="cart-table"><thead><tr><th>Produto</th><th>Qtd.</th><th>Unitário</th><th>Subtotal</th><th></th></tr></thead><tbody id="sale-cart-body"></tbody></table></div><p id="cart-empty" class="empty-state">Adicione um ou mais produtos para montar a compra.</p></div>
+          <div id="sale-preview" class="sale-preview"><span>Total da venda <strong id="sale-total">R$ 0,00</strong></span><span>Vendedor (50%) <strong id="sale-seller-share">R$ 0,00</strong></span><span>Caixa LEGACY (50%) <strong id="sale-legacy-share">R$ 0,00</strong></span></div>
+          <div class="button-row"><button id="register-sale" type="submit" class="button primary" disabled>Registrar compra</button><button id="clear-cart" type="button" class="button ghost">Limpar carrinho</button></div>
+        </form><aside class="panel rules-panel"><div class="panel-heading"><div><p class="eyebrow">DIVISÃO AUTOMÁTICA</p><h3>Partilha da venda</h3></div></div><div class="rule-split"><div><span>Vendedor</span><strong>50%</strong></div><div><span>Caixa LEGACY</span><strong>50%</strong></div></div><p class="muted small">O total de todos os itens é dividido em centavos. Eventual centavo ímpar fica com o caixa LEGACY.</p><div class="rules-note"><strong>Preço automático</strong><p>O servidor consulta o preço do catálogo no D1 conforme a opção de parceria. O valor mostrado no carrinho não pode ser alterado manualmente.</p></div></aside></div>
+      </section>
+
+      <section class="view" id="view-prices">
+        <div class="page-intro"><div><p class="eyebrow">CATÁLOGO LEGACY</p><h2>Tabela de preços</h2><p class="muted">Valores compartilhados com parceria e sem parceria. Atualizados a partir do catálogo do banco.</p></div></div>
+        <div class="price-gallery">
+          <article class="price-board partner-board"><div class="price-board-heading"><span class="eyebrow">LEGACY · CIDADE BRAVA</span><h3>COM PARCERIA</h3><p>Condição especial para parceiros</p></div><div id="partner-price-grid" class="price-grid"></div><div class="wash-rate"><strong>Lavagem</strong><span>Taxas conforme a regra da operação: 25% para pessoa de fora com parceria.</span></div></article>
+          <article class="price-board art-board"><img src="assets/tabela-sem-parceria.png" alt="Tabela de preços LEGACY sem parceria, com valores dos itens e taxas de lavagem"><div id="standard-price-summary" class="standard-price-summary"></div></article>
+        </div>
+        <p class="muted small price-note">A arte enviada disponível no material é a tabela sem parceria. O quadro com parceria é montado pelo sistema usando os preços cadastrados, para que continue correto quando os valores forem alterados.</p>
+      </section>
+
+      <section class="view" id="view-history">
+        <div class="page-intro"><div><p class="eyebrow">REGISTROS</p><h2>Histórico de operações</h2><p class="muted">Consulte, filtre, imprima ou exporte o histórico geral compartilhado.</p></div><button id="export-history" class="button secondary">Exportar CSV</button></div>
+        <div class="panel filters-panel"><label class="field search-field"><span>Pesquisar nome</span><input id="history-search" placeholder="Buscar responsável..."></label><label class="field"><span>Tipo</span><select id="history-type"><option value="all">Todos os tipos</option><option value="wash">Lavagem</option><option value="sale">Venda</option></select></label><label class="field"><span>De</span><input id="history-from" type="date"></label><label class="field"><span>Até</span><input id="history-to" type="date"></label><button id="clear-history-filters" class="button ghost">Limpar filtros</button></div>
+        <div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Data e hora</th><th>Responsável</th><th>Operação</th><th>Valor bruto</th><th>Valor líquido</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div id="history-empty" class="empty-state hidden">Nenhum registro corresponde aos filtros.</div></div>
+      </section>
+
+      <section class="view" id="view-reports">
+        <div class="page-intro"><div><p class="eyebrow">ANÁLISE</p><h2>Relatórios</h2><p class="muted">Totais calculados a partir das operações do banco compartilhado.</p></div><button id="export-report" class="button secondary">Exportar relatório CSV</button></div>
+        <div class="report-controls panel"><label class="field"><span>Período</span><select id="report-period"><option value="day">Diário</option><option value="week">Semanal</option><option value="month">Mensal</option></select></label><label class="field"><span>Data de referência</span><input id="report-date" type="date"></label><button id="refresh-report" class="button secondary">Atualizar relatório</button></div>
+        <div class="stats-grid report-stats"><article class="stat-card"><div class="stat-heading"><span>Total lavado</span><span class="stat-icon red">↗</span></div><strong id="report-washed">R$ 0,00</strong><small>Valor bruto das lavagens</small></article><article class="stat-card"><div class="stat-heading"><span>Taxas da máquina</span><span class="stat-icon">◉</span></div><strong id="report-machine">R$ 0,00</strong><small>Taxas de lavagem</small></article><article class="stat-card"><div class="stat-heading"><span>Acumulado LEGACY</span><span class="stat-icon gold">◆</span></div><strong id="report-legacy">R$ 0,00</strong><small>Lavagens e vendas</small></article><article class="stat-card"><div class="stat-heading"><span>Destinado a membros/clientes</span><span class="stat-icon">♙</span></div><strong id="report-members">R$ 0,00</strong><small>Valores líquidos das lavagens</small></article><article class="stat-card"><div class="stat-heading"><span>Comissões pagas</span><span class="stat-icon">♙</span></div><strong id="report-sellers">R$ 0,00</strong><small id="report-commission-breakdown">Vendedores + lavadores</small></article><article class="stat-card"><div class="stat-heading"><span>Total de vendas</span><span class="stat-icon">▤</span></div><strong id="report-sales">R$ 0,00</strong><small>Valor bruto comercializado</small></article></div>
+        <div class="panel table-panel"><div class="panel-heading"><div><p class="eyebrow">AGRUPAMENTO</p><h3>Resumo por dia</h3></div></div><div class="table-scroll"><table><thead><tr><th>Data</th><th>Lavagens</th><th>Vendas</th><th>Máquina</th><th>LEGACY</th><th>Comissões</th><th>Movimentado</th></tr></thead><tbody id="report-body"></tbody></table></div><div id="report-empty" class="empty-state hidden">Não há operações neste período.</div></div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="page-intro"><div><p class="eyebrow">CONFIGURAÇÕES E SEGURANÇA</p><h2>Produtos e dados</h2><p class="muted">Gerencie o catálogo e faça backup dos dados compartilhados.</p></div></div>
+        <div class="settings-grid"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">CATÁLOGO COMPARTILHADO</p><h3>Produtos e preços</h3></div></div><p class="muted small">Os valores são salvos no D1 e usados automaticamente na venda. Edição restrita a gerente e líder.</p><form id="product-form" class="product-form"><label class="field"><span>Nome do produto</span><input id="new-product-name" maxlength="80" placeholder="Nome do item" required></label><div class="field-grid price-edit-grid"><label class="field"><span>Preço sem parceria (R$)</span><input class="money-input" id="new-product-standard" type="text" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off" required></label><label class="field"><span>Preço com parceria (R$)</span><input class="money-input" id="new-product-partner" type="text" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off" required></label></div><div class="product-form-actions"><button class="button secondary" id="save-product" type="submit">Adicionar produto</button><button class="button ghost hidden" id="cancel-product-edit" type="button">Cancelar edição</button></div></form><div id="product-list" class="product-list"></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">BACKUP COMPARTILHADO</p><h3>Exportar dados do painel</h3></div></div><p class="muted">Baixa uma cópia JSON das operações e do catálogo atualmente salvos no D1 compartilhado.</p><div class="stack-buttons"><button id="backup-export" class="button secondary">Baixar backup JSON</button></div><p class="muted small">A exclusão de operações do histórico geral é restrita a gerentes e líderes. O painel não oferece limpeza em massa do banco.</p></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">ARMAZENAMENTO</p><h3>Privacidade dos dados</h3></div></div><div class="privacy-callout"><span class="privacy-icon">◉</span><p><strong>As operações ficam no banco compartilhado do Cloudflare.</strong><br>Usuários autorizados veem o mesmo histórico e catálogo em seus dispositivos.</p></div><p class="muted small">Acesso protegido por sessão Discord e cargo permitido. As operações são gravadas no D1; não são enviadas a outros serviços além dos webhooks configurados.</p><div id="calculation-test-status" class="test-status"></div></article>
+          <article class="panel"><div class="panel-heading"><div><p class="eyebrow">DISCORD · OPCIONAL</p><h3>Integração e acesso</h3></div></div><p id="discord-status" class="muted">A integração do Discord requer configuração do Cloudflare Pages descrita no README.</p><div class="discord-destinations"><div><span>Logs de lavagem</span><code>1573311237666902056</code><code>1573310826780295238</code></div><div><span>Logs de vendas</span><code>1541769406596517919</code></div></div><p class="muted small">O acesso online aceita contas com cargo de membro, gerente ou líder. Webhooks e credenciais ficam nas variáveis privadas do Cloudflare, nunca no código ou no GitHub.</p></article>
+        </div>
+      </section>
+      <footer class="app-footer"><span>LEGACY · Cidade Brava</span><span>Operações compartilhadas pelo banco D1</span></footer>
+    </main>
+  </div>
+
+  <dialog id="details-dialog" class="modal"><div class="modal-heading"><div><p class="eyebrow">DETALHES DA OPERAÇÃO</p><h2 id="details-title">Operação</h2></div><button class="icon-button" data-close-dialog aria-label="Fechar">×</button></div><div id="details-content"></div><div class="modal-actions"><button id="print-receipt" class="button secondary">Imprimir comprovante</button><button id="delete-operation" class="button danger">Excluir registro (gerência)</button></div></dialog>
+  <div id="print-area" class="print-area"></div>
+  <script src="script.js" defer></script>
+</body>
+</html>
