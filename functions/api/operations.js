@@ -61,7 +61,7 @@ export async function onRequestDelete({ request, env }) {
   if (!authConfigured(env)) return json({ error: 'A autenticação Discord não está configurada.' }, 503);
   const user = await readSession(request, env);
   if (!validUser(user)) return json({ error: 'Sessão inválida ou expirada. Entre novamente pelo Discord.' }, 401);
-  if (!['gerente', 'lider'].includes(user.role)) return json({ error: 'Somente gerente ou líder pode excluir operações.' }, 403);
+  if (user.role !== 'lider') return json({ error: 'Somente líder pode excluir operações.' }, 403);
   if (!requireDb(env)) return json({ error: 'O banco D1 não está vinculado como DB no Cloudflare Pages.' }, 503);
   const id = new URL(request.url).searchParams.get('id');
   if (!id || id.length > 80) return json({ error: 'Identificador inválido.' }, 400);

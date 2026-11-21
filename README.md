@@ -7,7 +7,7 @@ Aplicação estática em HTML/CSS/JavaScript puro para a organização LEGACY da
 - Dashboard, ranking de lavagens registradas por conta Discord, histórico geral, filtros, relatórios e CSV.
 - As seis regras de lavagem e partilha 50/50 das vendas, calculadas no servidor em centavos inteiros.
 - Sessão Discord, validação de cargo, API de operações D1 e webhooks privados.
-- Exclusão individual de operações somente por gerente ou líder.
+- Exclusão individual e limpeza geral de operações somente por líder; o reset preserva catálogo e preços.
 - Atualização dos dados a cada 30 segundos e quando o membro retorna à aba.
 - Comprovante para impressão e backup JSON do histórico compartilhado.
 - Catálogo de produtos com preços com/sem parceria compartilhado no D1, carrinho de múltiplos produtos e histórico de cada compra. A tabela de parceria é gerada diretamente dos preços do catálogo; a arte fornecida de sem parceria aparece na aba.
@@ -29,7 +29,8 @@ functions/_lib/auth.js
 functions/_lib/operations.js
 functions/api/auth/     login, callback e logout Discord
 functions/api/session.js
-functions/api/operations.js  leitura, gravação e exclusão no D1
+functions/api/operations.js  leitura, gravação e exclusão individual no D1
+functions/api/operations/reset.js  limpeza geral protegida por cargo de líder
 migrations/0001_init.sql
 migrations/0002_catalogo_produtos.sql
 functions/api/products.js
@@ -90,7 +91,7 @@ No Pages: **Settings → Variables and Secrets**. Cadastre em **Production**. Pa
 | `DISCORD_WASH_WEBHOOK_2` | Secret | URL do webhook do canal `1573310826780295238` |
 | `DISCORD_SALES_WEBHOOK` | Secret | URL do webhook do canal `1541769406596517919` |
 
-IDs de cargos: membro `1541651937286422617`, gerente `1541651937299271722`, líder `1541651937311719490`. A detecção de permissões para exclusão usa os IDs gerente/líder informados; se os cargos forem recriados com IDs novos, atualize `DISCORD_MANAGER_ROLE_ID` e `DISCORD_LEADER_ROLE_ID` como variáveis **Text** no Cloudflare.
+IDs de cargos: membro `1541651937286422617`, gerente `1541651937299271722`, líder `1541651937311719490`. A exclusão individual e o reset exigem o papel `lider`, atribuído no login conforme o ID do cargo de líder (`DISCORD_LEADER_ROLE_ID`, com o ID atual como padrão). Se esse cargo for recriado com outro ID, atualize a variável **Text** no Cloudflare e autentique novamente.
 
 O Client Secret foi compartilhado em conversa anteriormente: **revogue-o e gere outro antes de colocar o site online**. Configure apenas o novo como Secret. Não compartilhe também o segredo de sessão ou URLs de webhook.
 
@@ -116,7 +117,7 @@ Para `SESSION_SECRET`, use um valor aleatório e exclusivo, com no mínimo 32 ca
 - Após a confirmação do D1, o servidor publica uma embed no(s) webhook(s) pertinente(s). A embed mostra quem registrou, nome informado, valores, percentuais, data/hora, ID e observação.
 - Se o Discord falhar, o registro permanece salvo. A tela avisará que o webhook falhou; confira a URL/Secret e o canal. Não registre de novo a mesma operação sem antes conferir o histórico, para evitar duplicidade.
 - O ranking “Lavagens por membro” soma o valor bruto das lavagens registradas por cada conta Discord. Os relatórios somam a comissão dos vendedores e as taxas repassadas aos lavadores. Os dados do D1 podem ser exportados em CSV/JSON.
-- Membros, gerentes e líderes veem o histórico geral. A exclusão individual é limitada a gerente/líder.
+- Membros, gerentes e líderes veem o histórico geral. Exclusão individual e reset de operações são limitados a líderes; o reset preserva produtos e preços.
 - O catálogo e os preços ficam no D1 e são compartilhados. Apenas gerente e líder podem criar, editar ou remover produtos; os membros podem consultar os valores e registrar vendas.
 
 ## Testes de cálculo
@@ -134,6 +135,6 @@ O teste valida as seis combinações financeiras, a divisão 50/50 (incluindo ce
 - Não há dados locais como base financeira: sem Cloudflare Pages Functions, sessão Discord e binding D1, os registros não serão salvos no compartilhado.
 - O login é OAuth Discord com cookie assinado e `HttpOnly`; as rotas financeiras exigem sessão e origem do próprio site.
 - O navegador nunca recebe Client Secret ou URL de webhook. Os webhooks podem publicar nos canais; regenere-os se forem expostos.
-- A sessão dura até seis horas; a conferência de cargo ocorre no login. Saia e autentique novamente após mudança de cargo.
+- A sessão dura até seis horas; a conferência de cargo ocorre no login. Saia e autentique novamente após mudança de cargo. A API confere a função assinada da sessão para exclusão e reset.
 - O D1 armazena dados do servidor; configure acesso à conta Cloudflare e backups da própria Cloudflare com cuidado. O backup JSON do painel é baixado pelo usuário e contém o histórico financeiro.
 - A conexão em tempo real é por atualização periódica, não por push instantâneo; novas operações aparecem em até 30 segundos ou ao atualizar a página.

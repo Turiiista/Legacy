@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestPost, onRequestGet } from '../functions/api/operations.js';
+import { onRequestPost, onRequestGet, onRequestDelete } from '../functions/api/operations.js';
 import { createSession } from '../functions/_lib/auth.js';
+import { onRequestPost as onResetOperations } from '../functions/api/operations/reset.js';
 import { onRequestGet as onProductsGet, onRequestPost as onProductsPost } from '../functions/api/products.js';
 
 const env = {
@@ -29,7 +30,8 @@ class MemoryD1 {
             return { success: true, meta: { changes: 1 } };
           }
           if (sql.startsWith('DELETE FROM operacoes')) {
-            const before = db.rows.length; db.rows = db.rows.filter(row => row.id !== values[0]);
+            const before = db.rows.length;
+            db.rows = values.length ? db.rows.filter(row => row.id !== values[0]) : [];
             return { success: true, meta: { changes: before - db.rows.length } };
           }
           if (sql.startsWith('INSERT INTO produtos')) {
@@ -123,4 +125,44 @@ test('catálogo compartilhado: somente gerente/líder pode cadastrar item', asyn
   const allowed = await onProductsPost({request:await makeRequest('/api/products','POST',{name:'Novo item',standardPriceCents:10000,partnershipPriceCents:8000},`legacy_session=${managerSession}`),env});
   assert.equal(allowed.status,201);
   assert.equal(DB.products.length,3);
+});
+
+test('exclusão individual de operações é negada a membros e gerentes e permitida a líder', async () => {
+  const DB = new MemoryD1(); env.DB = DB;
+  DB.rows.push({id:'op-1',criado_em:new Date().toISOString(),tipo:'wash',discord_id:'x',discord_nome:'x',responsavel:'Teste',valor_bruto_centavos:100,detalhes_json:'{}',observacao:''});
+  for (const role of ['membro','gerente']) {
+    const session = await createSession({id:`delete-${role}`,username:role,role},env);
+    const response = await onRequestDelete({request:await makeRequest('/api/operations?id=op-1','DELETE',undefined,`legacy_session=${session}`),env});
+    assert.equal(response.status,403,`${role} não deve excluir`);
+  }
+  assert.equal(DB.rows.length,1);
+  const leader = await createSession({id:'delete-lider',username:'Líder',role:'lider'},env);
+  const allowed = await onRequestDelete({request:await makeRequest('/api/operations?id=op-1','DELETE',undefined,`legacy_session=${leader}`),env});
+  assert.equal(allowed.status,200);
+  assert.equal(DB.rows.length,0);
+});
+
+test('reset geral é exclusivo do líder e preserva catálogo e preços', async () => {
+  const DB = new MemoryD1(); env.DB = DB;
+  DB.rows.push(
+    {id:'op-1',criado_em:'2026-01-01T00:00:00.000Z',tipo:'wash',discord_id:'x',discord_nome:'x',responsavel:'A',valor_bruto_centavos:100,detalhes_json:'{}',observacao:''},
+    {id:'op-2',criado_em:'2026-01-02T00:00:00.000Z',tipo:'sale',discord_id:'y',discord_nome:'y',responsavel:'B',valor_bruto_centavos:200,detalhes_json:'{}',observacao:''}
+  );
+  const productsBefore = structuredClone(DB.products);
+  for (const role of ['membro','gerente']) {
+    const session = await createSession({id:`reset-${role}`,username:role,role},env);
+    const response = await onResetOperations({request:await makeRequest('/api/operations/reset','POST',{confirmation:'RESETAR'},`legacy_session=${session}`),env});
+    assert.equal(response.status,403,`${role} não deve resetar`);
+  }
+  assert.equal(DB.rows.length,2);
+  const leader = await createSession({id:'reset-lider',username:'Líder',role:'lider'},env);
+  const wrongConfirmation = await onResetOperations({request:await makeRequest('/api/operations/reset','POST',{confirmation:'apagar'},`legacy_session=${leader}`),env});
+  assert.equal(wrongConfirmation.status,400);
+  assert.equal(DB.rows.length,2);
+  const result = await onResetOperations({request:await makeRequest('/api/operations/reset','POST',{confirmation:'RESETAR'},`legacy_session=${leader}`),env});
+  const payload = await result.json();
+  assert.equal(result.status,200);
+  assert.equal(payload.deleted,2);
+  assert.equal(DB.rows.length,0);
+  assert.deepEqual(DB.products,productsBefore);
 });

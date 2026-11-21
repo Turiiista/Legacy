@@ -90,6 +90,7 @@
   }
   function setDiscordNotice(){
     const notice=$('#system-notice'),pill=$('#connection-pill'),login=$('#discord-login'),shell=$('#app-shell'),overlay=$('#auth-overlay');
+    $('#leader-reset-card').classList.toggle('hidden',!discordStatus.authenticated||discordStatus.user?.role!=='lider');
     if(discordStatus.authConfigured){
       pill.innerHTML='<i></i> Banco compartilhado';pill.classList.add('discord');
       $('#logout-button').classList.toggle('hidden',!discordStatus.authenticated);
@@ -298,11 +299,11 @@
   function historyFiltered(){const query=$('#history-search').value.trim().toLowerCase(),type=$('#history-type').value,from=$('#history-from').value,to=$('#history-to').value;return [...state.operations].filter(o=>(type==='all'||o.type===type)&&(!query||String(o.responsible||'').toLowerCase().includes(query)||String(o.creatorName||'').toLowerCase().includes(query))&&(!from||localDateKey(o.createdAt)>=from)&&(!to||localDateKey(o.createdAt)<=to)).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));}
   function renderHistory(){const list=historyFiltered(),body=$('#history-body');body.innerHTML=list.map(o=>`<tr><td class="table-date">${escapeHtml(formatDate(o.createdAt))}</td><td class="table-person">${escapeHtml(o.responsible)}</td><td><span class="type-badge ${o.type==='sale'?'sale':''}">${o.type==='wash'?'Lavagem':'Venda'}</span></td><td>${centsToMoney(o.grossCents)}</td><td>${centsToMoney(o.netCents)}</td><td><button class="row-action" data-open-operation="${escapeHtml(o.id)}">Detalhes</button></td></tr>`).join('');$('#history-empty').classList.toggle('hidden',list.length>0);$$('[data-open-operation]').forEach(btn=>btn.addEventListener('click',()=>openDetails(btn.dataset.openOperation)));}
   function operationDetails(o){const lines=[['Identificador',o.id],['Data e hora',formatDate(o.createdAt)],['Responsável',o.responsible],['Registrado por',o.creatorName||'—'],['Tipo de operação',o.type==='wash'?'Lavagem':'Venda'],['Valor bruto',centsToMoney(o.grossCents)]];if(o.type==='wash'){lines.push(['Categoria',o.category==='member'?'Membro LEGACY':'Pessoa de fora'],['Pagou o farm',o.farmPaid?'Sim':'Não']);if(o.category==='outsider')lines.push(['Parceria',o.partnership?'Sim':'Não']);lines.push(['Máquina',`${centsToMoney(o.machineCents)} (${o.rates?.machine??10}%)`],['Caixa LEGACY',`${centsToMoney(o.legacyCents)} (${o.rates?.legacy??0}%)`],['Lavador',`${centsToMoney(o.washerCents)} (${o.rates?.washer??0}%)`],['Total de taxas',centsToMoney(o.totalFeesCents)],['Valor líquido entregue',centsToMoney(o.netCents)]);}else{const items=Array.isArray(o.items)?o.items:[];lines.push(['Parceria',o.partnership?'Sim':'Não'],['Produtos',items.length?items.map(item=>`${item.quantity} × ${item.name} · ${centsToMoney(item.totalCents)}`).join(' | '):o.product||'—'],['Quantidade total',String(o.quantity||items.reduce((n,item)=>n+item.quantity,0))],['Vendedor (50%)',centsToMoney(o.sellerCents)],['Caixa LEGACY (50%)',centsToMoney(o.legacyCents)],['Valor líquido da operação',centsToMoney(o.netCents)]);}if(o.notes)lines.push(['Observações',o.notes]);return lines;}
-  function openDetails(id){const o=state.operations.find(item=>item.id===id);if(!o)return;selectedOperation=o;$('#details-title').textContent=o.type==='wash'?'Lavagem':'Venda de itens';$('#details-content').innerHTML=`<div class="detail-grid">${operationDetails(o).map(([k,v])=>`<div class="detail-line"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join('')}</div>`;$('#delete-operation').classList.toggle('hidden',!['gerente','lider'].includes(discordStatus.user?.role));const dialog=$('#details-dialog');if(!dialog.open)dialog.showModal();}
+  function openDetails(id){const o=state.operations.find(item=>item.id===id);if(!o)return;selectedOperation=o;$('#details-title').textContent=o.type==='wash'?'Lavagem':'Venda de itens';$('#details-content').innerHTML=`<div class="detail-grid">${operationDetails(o).map(([k,v])=>`<div class="detail-line"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join('')}</div>`;$('#delete-operation').classList.toggle('hidden',discordStatus.user?.role!=='lider');const dialog=$('#details-dialog');if(!dialog.open)dialog.showModal();}
   function makeReceipt(o){const fields=operationDetails(o);$('#print-area').innerHTML=`<div class="receipt-brand">LEGACY · CIDADE BRAVA</div><h1>Comprovante de ${o.type==='wash'?'lavagem':'venda'}</h1><p>Registro interno · ${escapeHtml(formatDate(o.createdAt))}</p>${fields.map(([k,v])=>`<div class="receipt-line"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join('')}<p class="receipt-note">Este comprovante foi gerado pelo painel financeiro LEGACY.</p>`;window.print();}
   async function deleteSelected(){
     if(!selectedOperation)return;
-    if(!['gerente','lider'].includes(discordStatus.user?.role)){showToast('Somente gerente ou líder pode excluir operações.','error');return;}
+    if(discordStatus.user?.role!=='lider'){showToast('Somente líder pode excluir operações.','error');return;}
     if(!confirm(`Excluir o registro ${selectedOperation.id} do histórico compartilhado? Esta ação não pode ser desfeita.`))return;
     try{await apiRequest(`/api/operations?id=${encodeURIComponent(selectedOperation.id)}`,{method:'DELETE'});$('#details-dialog').close();selectedOperation=null;await Promise.all([loadSharedOperations(),loadSharedProducts()]);renderAll();showToast('Registro excluído do banco compartilhado.');}
     catch(error){showToast(error.message||'Não foi possível excluir o registro.','error');}
@@ -320,7 +321,20 @@
     downloadBlob(`legacy-backup-${localDateKey(new Date())}.json`,JSON.stringify(payload,null,2),'application/json');
   }
 
-  function clearAllData(){if(!confirm('ATENÇÃO: apagar todas as operações e produtos personalizados deste navegador?'))return;if(!confirm('Confirma a exclusão definitiva dos dados locais?'))return;state=emptyState();saveState();renderAll();showToast('Dados locais apagados.');}
+  async function resetAllOperations(){
+    if(discordStatus.user?.role!=='lider'){showToast('Somente líder pode limpar as operações.','error');return;}
+    if(!window.confirm('ATENÇÃO: serão apagadas todas as lavagens e vendas do banco compartilhado. O catálogo e os preços serão preservados. Esta ação não pode ser desfeita.'))return;
+    const confirmation=window.prompt('Para confirmar, digite exatamente RESETAR.');
+    if(confirmation!=='RESETAR'){if(confirmation!==null)showToast('Confirmação não corresponde. Nada foi apagado.','error');return;}
+    const button=$('#reset-all-operations');button.disabled=true;button.textContent='Apagando…';
+    try{
+      const result=await apiRequest('/api/operations/reset',{method:'POST',body:JSON.stringify({confirmation})});
+      selectedOperation=null;if($('#details-dialog').open)$('#details-dialog').close();
+      await Promise.all([loadSharedOperations(),loadSharedProducts()]);renderAll();
+      showToast(`Painel limpo: ${Number(result.deleted)||0} operação(ões) removida(s). Catálogo e preços preservados.`);
+    }catch(error){showToast(error.message||'Não foi possível limpar as operações.','error');}
+    finally{button.disabled=false;button.textContent='Apagar todas as operações';}
+  }
   function renderAll(){renderProducts();refreshDashboard();renderHistory();refreshReport();}
   const TITLES={dashboard:'Visão geral',wash:'Nova lavagem',sales:'Venda de itens',prices:'Tabela de preços',history:'Histórico',reports:'Relatórios',settings:'Produtos e dados'};
   function navigate(view){if(!TITLES[view])return;$$('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));$$('.nav-item[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));$('#page-title').textContent=TITLES[view];$('#sidebar').classList.remove('open');if(view==='dashboard')refreshDashboard();if(view==='history')renderHistory();if(view==='reports')refreshReport();}
@@ -331,7 +345,7 @@
     $$('.money-input').forEach(input=>input.addEventListener('legacy-money-change',()=>{invalidateWashPreview();updateSalePreview();}));
     $('#sales-form').addEventListener('submit',registerSale);$('#sale-quantity').addEventListener('input',updateSalePreview);$('#sale-product').addEventListener('change',updateSaleUnit);$('#sale-partnership').addEventListener('change',updateSaleUnit);$('#add-to-cart').addEventListener('click',addCartItem);$('#clear-cart').addEventListener('click',()=>{if(!cart.length)return;if(confirm('Esvaziar todos os produtos deste pedido?')){cart=[];renderCart();}});
     for(const id of ['history-search','history-type','history-from','history-to'])$('#'+id).addEventListener('input',renderHistory);$('#clear-history-filters').addEventListener('click',()=>{$('#history-search').value='';$('#history-type').value='all';$('#history-from').value='';$('#history-to').value='';renderHistory();});$('#export-history').addEventListener('click',exportHistory);$('#report-period').addEventListener('change',refreshReport);$('#report-date').addEventListener('change',refreshReport);$('#refresh-report').addEventListener('click',refreshReport);$('#export-report').addEventListener('click',exportReport);
-    $('#product-form').addEventListener('submit',saveProduct);$('#cancel-product-edit').addEventListener('click',()=>setProductForm());$('#backup-export').addEventListener('click',exportBackup);
+    $('#product-form').addEventListener('submit',saveProduct);$('#cancel-product-edit').addEventListener('click',()=>setProductForm());$('#backup-export').addEventListener('click',exportBackup);$('#reset-all-operations').addEventListener('click',resetAllOperations);
     $('#details-dialog').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.close();});$$('[data-close-dialog]').forEach(btn=>btn.addEventListener('click',()=>$('#details-dialog').close()));$('#print-receipt').addEventListener('click',()=>{if(selectedOperation)makeReceipt(selectedOperation);});$('#delete-operation').addEventListener('click',deleteSelected);$('#logout-button').addEventListener('click',async()=>{try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'});}catch(_){}location.reload();});$('#retry-auth').addEventListener('click',()=>location.reload());
     window.addEventListener('resize',()=>{if($('#view-dashboard').classList.contains('active'))drawChart(visibleOperations($('#dashboard-period').value));});
   }
